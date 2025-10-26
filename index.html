@@ -73,6 +73,10 @@
 
     .footer-actions { display:flex; justify-content: space-between; align-items:center; gap:12px; flex-wrap: wrap; padding: 12px 16px; }
     .hint { color: var(--subtext); font-size: 0.85rem; }
+
+    details.testbox { max-width:1050px; margin: 0 auto 30px; padding: 0 20px; }
+    details.testbox > summary { cursor:pointer; color: var(--subtext); }
+    .test-results { white-space: pre-wrap; background: var(--panel); border:1px solid rgba(255,255,255,0.08); padding:12px; border-radius:12px; }
   </style>
 </head>
 <body>
@@ -108,17 +112,27 @@
       </div>
     </div>
 
-    <div class=\"footer-actions\">
-      <div class=\"toolbar\">
-        <button class=\"btn ghost\" id=\"loadDemo\">Load Utah Demo</button>
-        <button class=\"btn primary\" id=\"saveBtn\">Save JSON</button>
-        <input type=\"file\" id=\"loadFile\" accept=\"application/json\" hidden />
-        <button class=\"btn ghost\" id=\"loadBtn\">Load JSON</button>
-        <button class=\"btn success\" id=\"exportCsvBtn\">Export CSV</button>
+    <div class="footer-actions">
+      <div class="toolbar">
+        <button class="btn ghost" id="loadDemo">Load Utah Demo</button>
+        <button class="btn primary" id="saveBtn">Save JSON</button>
+        <input type="file" id="loadFile" accept="application/json" hidden />
+        <button class="btn ghost" id="loadBtn">Load JSON</button>
+        <button class="btn success" id="exportCsvBtn">Export CSV</button>
       </div>
-      <span class=\"hint\">Tip: Use 100% in the <em>% Reimb</em> column when fully reimbursable. Adjust down for splits.</span>
+      <span class="hint">Tip: Use 100% in the <em>% Reimb</em> column when fully reimbursable. Adjust down for splits.</span>
     </div>
   </div>
+
+  <!-- Tests -->
+  <details class="testbox">
+    <summary>Developer tests (click to run)</summary>
+    <div style="margin:10px 0;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+      <button class="btn primary" id="runTests">Run Tests</button>
+      <span class="hint">These validate CSV escaping, newline handling, and totals.</span>
+    </div>
+    <div id="testResults" class="test-results"></div>
+  </details>
 
   <script>
     /*** Utilities ***/
@@ -392,20 +406,55 @@
     }
 
     function toCsv(headers, rows) {
+      // Proper escaping: wrap in quotes if value contains comma, quote, or newline
       const escape = (v) => {
         if (v === null || v === undefined) return '';
         const s = String(v);
-        return /[\",
-]/.test(s) ? '"' + s.replace(/\"/g, '""') + '"' : s;
+        const needsQuotes = /[",\n]/.test(s); // NOTE: explicit \n, no literal line breaks
+        const doubled = s.replace(/"/g, '""');
+        return needsQuotes ? '"' + doubled + '"' : doubled;
       };
+      const eol = "\r\n"; // Excel/Numbers-friendly
       const head = headers.map(escape).join(',');
-      const body = rows.map(r => headers.map(h => escape(r[h])).join(',')).join('
-');
-      return head + '
-' + body;
+      const body = rows.map(r => headers.map(h => escape(r[h])).join(',')).join(eol);
+      return head + eol + body + eol;
     }
 
     function round2(n){ return Math.round((n||0) * 100) / 100; }
+
+    /*** Tests ***/
+    document.getElementById('runTests').addEventListener('click', () => {
+      const out = [];
+      const assert = (name, cond, extra='') => out.push(`${cond ? '✅' : '❌'} ${name}${extra ? ' — ' + extra : ''}`);
+
+      // Test 1: CSV escaping — comma, quotes, newline
+      const rows1 = [{ a: 'comma,here', b: 'quote"here', c: 'line\nbreak' }];
+      const csv1 = (function(){
+        const headers = ['a','b','c'];
+        return toCsv(headers, rows1.map(r=>({a:r.a,b:r.b,c:r.c})));
+      })();
+      assert('escape comma', csv1.includes('"comma,here"'));
+      assert('escape quote', csv1.includes('"quote""here"'));
+      assert('escape newline', csv1.includes('"line\nbreak"'));
+
+      // Test 2: Newline join — should contain \r\n
+      assert('uses CRLF newlines', /\r\n/.test(csv1));
+
+      // Test 3: Totals math
+      const demo = { sections: [ { id:'1', name:'A', taxRate:10, items:[{id:'x',desc:'i',price:10,qty:2,reimbPct:50}] } ] };
+      state = JSON.parse(JSON.stringify(demo));
+      const sec = state.sections[0];
+      const calc = calculateSection(sec);
+      // price 10 * qty 2 = 20; 50% reimb = 10; tax 10% = 1; total = 11
+      assert('subtotal correct', Math.abs(calc.subtotal - 10) < 1e-9, `got ${calc.subtotal}`);
+      assert('tax correct', Math.abs(calc.tax - 1) < 1e-9, `got ${calc.tax}`);
+      assert('total correct', Math.abs(calc.total - 11) < 1e-9, `got ${calc.total}`);
+
+      document.getElementById('testResults').textContent = out.join('\n');
+      // restore
+      state = { sections: [] };
+      render();
+    });
 
     /*** Demo for Utah food vs general ***/
     document.getElementById('loadDemo').addEventListener('click', () => {
