@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Reimbursement Calculator</title>
+  <style>
+    :root {
+      --bg: #0f172a;          /* slate-900 */
+      --panel: #111827;       /* gray-900 */
+      --muted: #1f2937;       /* gray-800 */
+      --text: #e5e7eb;        /* gray-200 */
+      --subtext: #9ca3af;     /* gray-400 */
+      --accent: #22c55e;      /* green-500 */
+      --accent-2: #3b82f6;    /* blue-500 */
+      --danger: #ef4444;      /* red-500 */
+      --warning: #f59e0b;     /* amber-500 */
+      --radius: 14px;
+    }
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji"; margin: 0; background: var(--bg); color: var(--text); }
+    header { padding: 20px 20px 0; max-width: 1050px; margin: 0 auto; }
+    header h1 { margin: 6px 0 4px; font-size: 1.6rem; }
+    header p { margin: 0; color: var(--subtext); }
+
+    .container { max-width: 1050px; margin: 16px auto 80px; padding: 0 20px; }
+    .panel { background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); border: 1px solid rgba(255,255,255,0.06); border-radius: var(--radius); box-shadow: 0 8px 30px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.04); }
+
+    .grid { display: grid; gap: 16px; }
+
+    .add-section { padding: 16px; display: grid; grid-template-columns: 1fr 140px 140px; gap: 12px; align-items: end; }
+    .add-section .input { display: grid; gap: 6px; }
+    label { font-size: 0.85rem; color: var(--subtext); }
+    input[type="text"], input[type="number"] { background: var(--panel); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 10px 12px; color: var(--text); outline: none; }
+    input[type="number"] { appearance: textfield; }
+    input[type="number"]::-webkit-outer-spin-button, input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+    .btn { border: none; padding: 10px 14px; border-radius: 10px; cursor: pointer; color: #fff; font-weight: 600; letter-spacing: 0.2px; }
+    .btn.primary { background: var(--accent-2); }
+    .btn.success { background: var(--accent); }
+    .btn.warn { background: var(--warning); }
+    .btn.ghost { background: transparent; border: 1px solid rgba(255,255,255,0.12); color: var(--text); }
+    .btn.danger { background: var(--danger); }
+
+    .section { padding: 14px; display: grid; gap: 14px; }
+    .section-head { display: flex; gap: 12px; align-items: center; justify-content: space-between; }
+    .section-title { display: flex; gap: 10px; align-items: baseline; }
+    .section-title h2 { margin: 0; font-size: 1.15rem; }
+    .section-title small { color: var(--subtext); }
+
+    .items { overflow-x: auto; border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; }
+    table { width: 100%; border-collapse: collapse; min-width: 740px; }
+    thead th { text-align: left; font-size: 0.8rem; color: var(--subtext); font-weight: 600; padding: 10px 12px; background: rgba(255,255,255,0.03); position: sticky; top: 0; }
+    tbody td { padding: 8px 10px; border-top: 1px dashed rgba(255,255,255,0.06); }
+    tbody tr:hover { background: rgba(255,255,255,0.03); }
+    td input { width: 100%; }
+    td.actions { width: 60px; text-align: right; }
+
+    .totals { display: grid; justify-content: end; gap: 6px; padding: 8px 6px; }
+    .totals .row { display: grid; grid-template-columns: 160px 120px; gap: 12px; align-items: center; }
+    .totals .label { color: var(--subtext); text-align: right; }
+    .totals .value { text-align: right; font-variant-numeric: tabular-nums; }
+    .totals .grand { font-weight: 800; font-size: 1.05rem; }
+
+    .toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+    .summary { margin-top: 20px; padding: 16px; }
+    .summary h3 { margin: 0 0 8px 0; }
+    .summary .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
+    .summary .card { background: var(--panel); padding: 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.06); }
+    .summary .card .label { color: var(--subtext); font-size: 0.8rem; }
+    .summary .card .num { font-variant-numeric: tabular-nums; font-size: 1.15rem; font-weight: 700; }
+
+    .footer-actions { display:flex; justify-content: space-between; align-items:center; gap:12px; flex-wrap: wrap; padding: 12px 16px; }
+    .hint { color: var(--subtext); font-size: 0.85rem; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Reimbursement Calculator</h1>
+    <p>Enter items in sections by tax rate (e.g., Utah Grocery vs General). Add a reimbursable % per line when checks are split.</p>
+  </header>
+
+  <div class="container grid">
+    <!-- Create Section -->
+    <div class="panel add-section">
+      <div class="input">
+        <label>Section name</label>
+        <input id="newName" type="text" placeholder="e.g. Utah Grocery (Food)" />
+      </div>
+      <div class="input">
+        <label>Tax rate (%)</label>
+        <input id="newRate" type="number" step="0.001" min="0" value="0" />
+      </div>
+      <button id="addSectionBtn" class="btn success">+ Add Section</button>
+    </div>
+
+    <div id="sections" class="grid"></div>
+
+    <!-- Grand Summary -->
+    <div class="panel summary" id="summaryPanel" hidden>
+      <h3>Summary</h3>
+      <div class="grid2">
+        <div class="card"><div class="label">Subtotal (Reimbursable)</div><div class="num" id="sumSubtotal">$0.00</div></div>
+        <div class="card"><div class="label">Tax Total</div><div class="num" id="sumTax">$0.00</div></div>
+        <div class="card"><div class="label">Grand Total</div><div class="num" id="sumGrand">$0.00</div></div>
+        <div class="card"><div class="label">Sections</div><div class="num" id="sumSections">0</div></div>
+      </div>
+    </div>
+
+    <div class=\"footer-actions\">
+      <div class=\"toolbar\">
+        <button class=\"btn ghost\" id=\"loadDemo\">Load Utah Demo</button>
+        <button class=\"btn primary\" id=\"saveBtn\">Save JSON</button>
+        <input type=\"file\" id=\"loadFile\" accept=\"application/json\" hidden />
+        <button class=\"btn ghost\" id=\"loadBtn\">Load JSON</button>
+        <button class=\"btn success\" id=\"exportCsvBtn\">Export CSV</button>
+      </div>
+      <span class=\"hint\">Tip: Use 100% in the <em>% Reimb</em> column when fully reimbursable. Adjust down for splits.</span>
+    </div>
+  </div>
+
+  <script>
+    /*** Utilities ***/
+    const fmt = new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' });
+    const money = (n) => fmt.format(n || 0);
+
+    function uid() { return Math.random().toString(36).slice(2, 9); }
+
+    /*** State ***/
+    let state = { sections: [] };
+
+    /*** DOM helpers ***/
+    const sectionsEl = document.getElementById('sections');
+    function el(html) { const d = document.createElement('template'); d.innerHTML = html.trim(); return d.content.firstElementChild; }
+
+    /*** Section rendering ***/
+    function render() {
+      sectionsEl.innerHTML = '';
+      state.sections.forEach(section => {
+        const sec = el(`
+          <div class="panel section" data-id="${section.id}">
+            <div class="section-head">
+              <div class="section-title">
+                <h2>${section.name}</h2>
+                <small>Tax: <input type="number" class="js-tax" step="0.001" min="0" value="${section.taxRate}" style="width:90px;"> %</small>
+              </div>
+              <div class="toolbar">
+                <button class="btn ghost js-add-item">+ Item</button>
+                <button class="btn warn js-calc">Calculate</button>
+                <button class="btn danger js-remove">Remove</button>
+              </div>
+            </div>
+            <div class="items">
+              <table>
+                <thead>
+                  <tr>
+                    <th style="width:32px;">#</th>
+                    <th>Description</th>
+                    <th style="width:120px;">Price</th>
+                    <th style="width:90px;">Qty</th>
+                    <th style="width:120px;">% Reimb</th>
+                    <th style="width:140px;">Line Total</th>
+                    <th class="actions"></th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+            <div class="totals">
+              <div class="row"><div class="label">Section Subtotal</div><div class="value js-subtotal">$0.00</div></div>
+              <div class="row"><div class="label">Tax (@ <span class="js-taxlabel">${section.taxRate}%</span>)</div><div class="value js-tax">$0.00</div></div>
+              <div class="row grand"><div class="label">Section Total</div><div class="value js-total">$0.00</div></div>
+            </div>
+          </div>
+        `);
+
+        const tbody = sec.querySelector('tbody');
+        section.items.forEach((item, idx) => tbody.appendChild(rowEl(section.id, item, idx)));
+        sectionsEl.appendChild(sec);
+      });
+
+      document.getElementById('summaryPanel').hidden = state.sections.length === 0;
+      calcSummary();
+    }
+
+    function rowEl(sectionId, item, idx) {
+      const { id, desc, price, qty, reimbPct } = item;
+      const node = el(`
+        <tr data-item-id="${id}" data-section-id="${sectionId}">
+          <td>${idx + 1}</td>
+          <td><input type="text" class="js-desc" placeholder="Item description" value="${desc}"></td>
+          <td><input type="number" class="js-price" min="0" step="0.01" value="${price}"></td>
+          <td><input type="number" class="js-qty" min="0" step="1" value="${qty}"></td>
+          <td><input type="number" class="js-reimb" min="0" max="100" step="1" value="${reimbPct}"></td>
+          <td class="js-line">$0.00</td>
+          <td class="actions"><button class="btn ghost js-del">✕</button></td>
+        </tr>
+      `);
+      return node;
+    }
+
+    /*** Calculations ***/
+    function calculateSection(section) {
+      let subtotal = 0;
+      section.items.forEach(it => {
+        const line = (Number(it.price) || 0) * (Number(it.qty) || 0) * (Number(it.reimbPct) || 0) / 100;
+        subtotal += line;
+      });
+      const tax = subtotal * (Number(section.taxRate) || 0) / 100;
+      const total = subtotal + tax;
+      return { subtotal, tax, total };
+    }
+
+    function calcSummary() {
+      let sub = 0, tax = 0, total = 0;
+      state.sections.forEach(s => {
+        const r = calculateSection(s);
+        sub += r.subtotal; tax += r.tax; total += r.total;
+      });
+      document.getElementById('sumSubtotal').textContent = money(sub);
+      document.getElementById('sumTax').textContent = money(tax);
+      document.getElementById('sumGrand').textContent = money(total);
+      document.getElementById('sumSections').textContent = state.sections.length;
+    }
+
+    /*** Events ***/
+    document.getElementById('addSectionBtn').addEventListener('click', () => {
+      const name = document.getElementById('newName').value.trim() || 'Untitled Section';
+      const taxRate = Number(document.getElementById('newRate').value || 0);
+      state.sections.push({ id: uid(), name, taxRate, items: [] });
+      document.getElementById('newName').value = '';
+      render();
+    });
+
+    // Delegate section interactions
+    sectionsEl.addEventListener('click', (e) => {
+      const secEl = e.target.closest('.section');
+      if (!secEl) return;
+      const id = secEl.dataset.id;
+      const section = state.sections.find(s => s.id === id);
+
+      if (e.target.classList.contains('js-add-item')) {
+        section.items.push({ id: uid(), desc: '', price: 0, qty: 1, reimbPct: 100 });
+        render();
+      }
+      if (e.target.classList.contains('js-remove')) {
+        state.sections = state.sections.filter(s => s.id !== id);
+        render();
+      }
+      if (e.target.classList.contains('js-calc')) {
+        // pull latest values from DOM to state
+        syncSectionFromDom(secEl, section);
+        // update totals in the UI
+        applySectionTotals(secEl, section);
+        calcSummary();
+      }
+      if (e.target.classList.contains('js-del')) {
+        const row = e.target.closest('tr');
+        const itemId = row.dataset.itemId;
+        section.items = section.items.filter(it => it.id !== itemId);
+        render();
+      }
+    });
+
+    // Handle inputs (live update state + quick totals)
+    sectionsEl.addEventListener('input', (e) => {
+      const secEl = e.target.closest('.section');
+      if (!secEl) return;
+      const id = secEl.dataset.id;
+      const section = state.sections.find(s => s.id === id);
+
+      if (e.target.classList.contains('js-tax')) {
+        section.taxRate = Number(e.target.value || 0);
+        secEl.querySelector('.js-taxlabel').textContent = section.taxRate + '%';
+      }
+
+      // Rows
+      if (['js-desc','js-price','js-qty','js-reimb'].some(c => e.target.classList.contains(c))) {
+        const row = e.target.closest('tr');
+        const item = section.items.find(it => it.id === row.dataset.itemId);
+        item.desc = row.querySelector('.js-desc').value;
+        item.price = Number(row.querySelector('.js-price').value || 0);
+        item.qty = Number(row.querySelector('.js-qty').value || 0);
+        item.reimbPct = Number(row.querySelector('.js-reimb').value || 0);
+
+        // quick line preview
+        const line = item.price * item.qty * item.reimbPct / 100;
+        row.querySelector('.js-line').textContent = money(line);
+      }
+    });
+
+    function syncSectionFromDom(secEl, section) {
+      section.taxRate = Number(secEl.querySelector('.js-tax').value || 0);
+      secEl.querySelectorAll('tbody tr').forEach(tr => {
+        const item = section.items.find(it => it.id === tr.dataset.itemId);
+        if (!item) return;
+        item.desc = tr.querySelector('.js-desc').value;
+        item.price = Number(tr.querySelector('.js-price').value || 0);
+        item.qty = Number(tr.querySelector('.js-qty').value || 0);
+        item.reimbPct = Number(tr.querySelector('.js-reimb').value || 0);
+      });
+    }
+
+    function applySectionTotals(secEl, section) {
+      const r = calculateSection(section);
+      secEl.querySelector('.js-subtotal').textContent = money(r.subtotal);
+      secEl.querySelector('.js-tax').textContent = money(r.tax);
+      secEl.querySelector('.js-total').textContent = money(r.total);
+    }
+
+    /*** Save / Load ***/
+    document.getElementById('saveBtn').addEventListener('click', () => {
+      const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'reimbursement-session.json';
+      a.click();
+      URL.revokeObjectURL(a.href);
+    });
+
+    document.getElementById('loadBtn').addEventListener('click', () => document.getElementById('loadFile').click());
+    document.getElementById('loadFile').addEventListener('change', (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        try { state = JSON.parse(reader.result); render(); }
+        catch(err) { alert('Invalid JSON'); }
+      };
+      reader.readAsText(file);
+      e.target.value = '';
+    });
+
+    /*** Export CSV (spreadsheet-ready) ***/
+    document.addEventListener('DOMContentLoaded', () => {
+      const btn = document.getElementById('exportCsvBtn');
+      if (!btn) return;
+      btn.addEventListener('click', () => {
+        syncAllFromDom();
+        const rows = buildRowsForExport();
+        const headers = Object.keys(rows[0] || { Section: '', TaxRatePercent: '', ItemNumber: '', Description: '', Price: '', Qty: '', ReimbPercent: '', LineReimbursable: '', LineTax: '', LineTotal: '' });
+        const csv = toCsv(headers, rows);
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'reimbursement-export.csv';
+        a.click();
+        URL.revokeObjectURL(a.href);
+      });
+    });
+
+    function syncAllFromDom() {
+      document.querySelectorAll('.section').forEach(secEl => {
+        const id = secEl.dataset.id;
+        const section = state.sections.find(s => s.id === id);
+        if (section) syncSectionFromDom(secEl, section);
+      });
+    }
+
+    function buildRowsForExport() {
+      const rows = [];
+      state.sections.forEach(section => {
+        const taxRate = Number(section.taxRate) || 0;
+        section.items.forEach((it, idx) => {
+          const lineReimb = (Number(it.price)||0) * (Number(it.qty)||0) * (Number(it.reimbPct)||0) / 100;
+          const lineTax = lineReimb * taxRate / 100;
+          rows.push({
+            Section: section.name,
+            TaxRatePercent: taxRate,
+            ItemNumber: idx + 1,
+            Description: it.desc || '',
+            Price: Number(it.price)||0,
+            Qty: Number(it.qty)||0,
+            ReimbPercent: Number(it.reimbPct)||0,
+            LineReimbursable: round2(lineReimb),
+            LineTax: round2(lineTax),
+            LineTotal: round2(lineReimb + lineTax)
+          });
+        });
+        const agg = calculateSection(section);
+        rows.push({
+          Section: section.name + ' — SECTION TOTAL',
+          TaxRatePercent: taxRate,
+          ItemNumber: '', Description: '', Price: '', Qty: '', ReimbPercent: '',
+          LineReimbursable: round2(agg.subtotal),
+          LineTax: round2(agg.tax),
+          LineTotal: round2(agg.total)
+        });
+      });
+      return rows;
+    }
+
+    function toCsv(headers, rows) {
+      const escape = (v) => {
+        if (v === null || v === undefined) return '';
+        const s = String(v);
+        return /[\",
+]/.test(s) ? '"' + s.replace(/\"/g, '""') + '"' : s;
+      };
+      const head = headers.map(escape).join(',');
+      const body = rows.map(r => headers.map(h => escape(r[h])).join(',')).join('
+');
+      return head + '
+' + body;
+    }
+
+    function round2(n){ return Math.round((n||0) * 100) / 100; }
+
+    /*** Demo for Utah food vs general ***/
+    document.getElementById('loadDemo').addEventListener('click', () => {
+      // Utah (example only) — set your locality values as needed
+      // Food: 3.0% (approx; jurisdictions vary), General: 7.25% – change to your exact rates
+      state = {
+        sections: [
+          { id: uid(), name: 'Grocery / Food (UT)', taxRate: 3.0, items: [
+            { id: uid(), desc: 'Bananas', price: 1.18, qty: 2, reimbPct: 100 },
+            { id: uid(), desc: 'Raspberries', price: 6.34, qty: 1, reimbPct: 50 }
+          ]},
+          { id: uid(), name: 'General Merchandise (UT)', taxRate: 7.25, items: [
+            { id: uid(), desc: 'Ziplock Bags', price: 6.98, qty: 1, reimbPct: 100 },
+            { id: uid(), desc: 'Cutlery', price: 1.24, qty: 2, reimbPct: 100 }
+          ]}
+        ]
+      };
+      render();
+    });
+
+    // Initial
+    render();
+  </script>
+</body>
+</html>
